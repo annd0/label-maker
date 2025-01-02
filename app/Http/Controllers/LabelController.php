@@ -7,19 +7,31 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use Illuminate\Support\Facades\Storage;
 
 class LabelController extends Controller
 {
     public function uploadForm()
     {
-        return view('upload'); // Make sure you have an upload view
+        $files = collect(Storage::files('generated_files'))
+            ->sortByDesc(function ($file) {
+                return Storage::lastModified($file);
+            })
+            ->take(10)
+            ->toArray();
+
+        return view('upload', ['files' => $files]);
     }
 
     public function generateLabels(Request $request)
     {
         $request->validate([
             'file' => 'required|mimes:xlsx,csv|max:2048',
+            'product' => 'required|string|in:Bedloft,Combination Unit,Futon',
         ]);
+
+        // Get the selected product
+        $selectedProduct = $request->input('product');
 
         // Store the uploaded Excel file
         $filePath = $request->file('file')->store('uploads', 'local');
@@ -31,10 +43,23 @@ class LabelController extends Controller
         $userdata = $spreadsheet->getActiveSheet()->toArray();
 
         // Remove the header row (first row)
-        array_shift($userdata);
+        $header = array_shift($userdata);
+
+        // Filter the data based on the selected product
+        $filteredData = array_filter($userdata, function ($row) use ($selectedProduct) {
+            // Assuming the product is in column H
+            return $row[7] === $selectedProduct;
+        });
+
+        // Check if there is no data after filtering
+        if (empty($filteredData)) {
+            return redirect()->back()->withErrors([
+                'product' => 'No data found for the selected product: ' . $selectedProduct . '. ' . 'Upload the file again and select a different product.',
+            ]);
+        }
 
         // Sort the data
-        usort($userdata, function ($a, $b) {
+        usort($filteredData, function ($a, $b) {
             // Adjust column indexes
             if ($a[10] === $b[10]) {
                 return $a[12] <=> $b[12];
@@ -51,7 +76,7 @@ class LabelController extends Controller
         $rowsPerPage = 18; // Number of rows in the template
         $labelsPerPage = 3; // Number of labels per page
         $columnsPerLabel = 4; // Width of each label in columns
-        $totalPages = ceil(count($userdata) / $labelsPerPage);
+        $totalPages = ceil(count($filteredData) / $labelsPerPage);
 
         for ($page = 0; $page < $totalPages; $page++) {
             // Duplicate template rows for this page
@@ -62,11 +87,11 @@ class LabelController extends Controller
             // Populate labels for this page
             for ($label = 0; $label < $labelsPerPage; $label++) {
                 $dataIndex = $page * $labelsPerPage + $label;
-                if ($dataIndex >= count($userdata)) {
+                if ($dataIndex >= count($filteredData)) {
                     break; // Stop if no more data
                 }
 
-                $dataRow = $userdata[$dataIndex];
+                $dataRow = $filteredData[$dataIndex];
                 $labelColumnOffset = $label * $columnsPerLabel; // Move horizontally to the correct column
 
                 // Populate data into the label (adjust columns as needed)
@@ -83,12 +108,15 @@ class LabelController extends Controller
         }
 
         // Save the generated file
-        $outputFilePath = storage_path('app/' . time() . 'generated_labels.xlsx');
+        $outputFilePath = storage_path('app/private/generated_files/' . time() . '_generated_labels.xlsx');
         $writer = new Xlsx($template);
         $writer->save($outputFilePath);
 
+        // Flash success message
+        session()->flash('success', 'File generated successfully!');
+
         // Return the file as a download
-        return response()->download($outputFilePath)->deleteFileAfterSend(true);
+        return response()->download($outputFilePath);
     }
 
     private function copyRowsWithImages(Worksheet $sheet, int $startRow, int $endRow, int $destinationRow)
