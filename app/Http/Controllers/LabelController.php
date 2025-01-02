@@ -30,6 +30,18 @@ class LabelController extends Controller
         $spreadsheet = $reader->load($inputFilePath);
         $userdata = $spreadsheet->getActiveSheet()->toArray();
 
+        // Remove the header row (first row)
+        array_shift($userdata);
+
+        // Sort the data
+        usort($userdata, function ($a, $b) {
+            // Adjust column indexes
+            if ($a[10] === $b[10]) {
+                return $a[12] <=> $b[12];
+            }
+            return $a[10] <=> $b[10];
+        });
+
         // Load the template
         $templatePath = storage_path('app/private/templates/IRD_Tag_Rental.xlsx');
         $template = IOFactory::load($templatePath);
@@ -58,8 +70,15 @@ class LabelController extends Controller
                 $labelColumnOffset = $label * $columnsPerLabel; // Move horizontally to the correct column
 
                 // Populate data into the label (adjust columns as needed)
-                $sheet->setCellValue([1 + $labelColumnOffset, 1], $dataRow[3]); // First name
-                $sheet->setCellValue([1 + $labelColumnOffset, 2], $dataRow[4]); // Last name
+                // Example of the look:
+                // PUR 2024-2025
+                // Wilkins A101
+                // Bedloft
+                // Smith, John
+                $sheet->setCellValue([1 + $labelColumnOffset, 1], $dataRow[8] . ' ' . $dataRow[9]); // School & Academic Year
+                $sheet->setCellValue([1 + $labelColumnOffset, 2], $dataRow[10] . ' ' . $dataRow[11] . $dataRow[12] . $dataRow[13]); // Hall & Prefix & Room Number & Suffix
+                $sheet->setCellValue([1 + $labelColumnOffset, 3], $dataRow[7]); // Product
+                $sheet->setCellValue([1 + $labelColumnOffset, 4], $dataRow[4] . ', ' . $dataRow[3]); // Last name & First name
             }
         }
 
