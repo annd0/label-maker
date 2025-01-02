@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\FileUploadController;
+use App\Http\Controllers\LabelController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome');
@@ -13,8 +13,8 @@ Route::view('profile', 'profile')
     ->middleware(['auth'])
     ->name('profile');
 
-Route::get('/upload', [FileUploadController::class, 'uploadForm']);
+Route::get('/upload', [LabelController::class, 'uploadform']);
 
-Route::post('/upload', [FileUploadController::class, 'processUpload']);
+Route::post('/generate-labels', [LabelController::class, 'generateLabels']);
 
 require __DIR__.'/auth.php';

@@ -29,11 +29,11 @@
         @endif
 
         <!-- File Upload Form -->
-        <form action="/upload" method="POST" enctype="multipart/form-data" class="m-5">
+        <form action="/generate-labels" method="POST" enctype="multipart/form-data" class="m-5">
             @csrf
             <div class="mb-3">
                 <label for="file" class="form-label">Choose a File</label>
-                <input type="file" class="form-control" name="file" id="file" required>
+                <input type="file" class="form-control" name="file" required>
             </div>
             <button type="submit" class="btn btn-primary">Upload</button>
         </form>
